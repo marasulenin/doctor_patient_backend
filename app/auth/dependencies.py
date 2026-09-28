@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.config import ALGORITHM, SECRET_KEY
 from app.database import get_db
 from app.models.user import User
+from app.models.doctor import Doctor
 
 
 oauth2_scheme = OAuth2PasswordBearer(
@@ -84,3 +85,20 @@ def require_doctor(
         )
 
     return current_user
+
+
+def get_current_doctor(
+    current_user: User = Depends(require_doctor),
+    db: Session = Depends(get_db)
+):
+    doctor = db.query(Doctor).filter(
+        Doctor.user_id == current_user.id
+    ).first()
+
+    if doctor is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Doctor profile not found"
+        )
+
+    return doctor
