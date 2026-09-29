@@ -1,8 +1,10 @@
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.auth.jwt import create_access_token
+from app.auth.password import validate_password
 from app.database import get_db
 from app.schemas.auth import UserRegister
 from app.services.auth_service import (
@@ -25,6 +27,16 @@ def register(
     user_data: UserRegister,
     db: Session = Depends(get_db)
 ):
+    if not validate_password(user_data.password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Password must be at least 8 characters long "
+                "and contain at least one uppercase letter, "
+                "one lowercase letter, and one digit"
+            )
+        )
+
     new_user = register_user(
         db=db,
         username=user_data.username,
@@ -81,3 +93,4 @@ def login(
         "access_token": access_token,
         "token_type": "bearer"
     }
+

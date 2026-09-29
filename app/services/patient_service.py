@@ -1,3 +1,4 @@
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.patient import Patient
@@ -27,14 +28,13 @@ def create_patient(
         doctor_id
     )
 
-    # If doctor_id is provided, validate the doctor
     if doctor_id is not None:
 
-        doctor = db.query(Doctor).filter(
-            Doctor.id == doctor_id
-        ).first()
+        doctor = db.get(
+            Doctor,
+            doctor_id
+        )
 
-        # Doctor does not exist
         if doctor is None:
             logger.warning(
                 "Patient creation failed: doctor id=%s not found",
@@ -42,7 +42,6 @@ def create_patient(
             )
             return "doctor_not_found"
 
-        # Doctor exists but is inactive
         if not doctor.is_active:
             logger.warning(
                 "Patient creation failed: doctor id=%s is inactive",
@@ -99,22 +98,31 @@ def get_all_patients(
         limit
     )
 
-    query = db.query(Patient)
+    query = select(Patient)
 
-    # Filter patients older than the given age
     if age_gt is not None:
-        query = query.filter(
+        query = query.where(
             Patient.age > age_gt
         )
 
-    # Total number of matching patients
-    total = query.count()
+    # Count matching records
+    count_query = select(
+        func.count()
+    ).select_from(
+        query.subquery()
+    )
 
-    # Calculate how many records to skip
+    total = db.scalar(count_query) or 0
+
+    # Pagination
     offset = (page - 1) * limit
 
-    # Get only the records for the requested page
-    patients = query.offset(offset).limit(limit).all()
+    patients = db.scalars(
+        query
+        .order_by(Patient.id)
+        .offset(offset)
+        .limit(limit)
+    ).all()
 
     logger.info(
         "Retrieved %s patients",
@@ -142,9 +150,10 @@ def get_patient_by_id(
         patient_id
     )
 
-    patient = db.query(Patient).filter(
-        Patient.id == patient_id
-    ).first()
+    patient = db.get(
+        Patient,
+        patient_id
+    )
 
     if patient is None:
         logger.warning(
@@ -168,10 +177,10 @@ def get_patients_by_doctor(
         doctor_id
     )
 
-    # Check whether doctor exists
-    doctor = db.query(Doctor).filter(
-        Doctor.id == doctor_id
-    ).first()
+    doctor = db.get(
+        Doctor,
+        doctor_id
+    )
 
     if doctor is None:
         logger.warning(
@@ -180,7 +189,6 @@ def get_patients_by_doctor(
         )
         return "doctor_not_found"
 
-    # Check whether doctor is active
     if not doctor.is_active:
         logger.warning(
             "Doctor is inactive with id=%s",
@@ -188,9 +196,12 @@ def get_patients_by_doctor(
         )
         return "doctor_inactive"
 
-    # Return patients assigned to this doctor
-    patients = db.query(Patient).filter(
-        Patient.doctor_id == doctor_id
+    patients = db.scalars(
+        select(Patient)
+        .where(
+            Patient.doctor_id == doctor_id
+        )
+        .order_by(Patient.id)
     ).all()
 
     logger.info(
@@ -221,10 +232,10 @@ def update_patient(
         patient_id
     )
 
-    # Find patient
-    patient = db.query(Patient).filter(
-        Patient.id == patient_id
-    ).first()
+    patient = db.get(
+        Patient,
+        patient_id
+    )
 
     if patient is None:
         logger.warning(
@@ -233,14 +244,13 @@ def update_patient(
         )
         return None
 
-    # If doctor_id is provided, validate doctor
     if doctor_id is not None:
 
-        doctor = db.query(Doctor).filter(
-            Doctor.id == doctor_id
-        ).first()
+        doctor = db.get(
+            Doctor,
+            doctor_id
+        )
 
-        # Doctor does not exist
         if doctor is None:
             logger.warning(
                 "Patient update failed: doctor id=%s not found",
@@ -248,7 +258,6 @@ def update_patient(
             )
             return "doctor_not_found"
 
-        # Doctor is inactive
         if not doctor.is_active:
             logger.warning(
                 "Patient update failed: doctor id=%s is inactive",
@@ -256,7 +265,6 @@ def update_patient(
             )
             return "doctor_inactive"
 
-    # Update patient
     patient.name = name
     patient.age = age
     patient.phone = phone
@@ -305,10 +313,10 @@ def patch_patient(
         patient_id
     )
 
-    # Find patient
-    patient = db.query(Patient).filter(
-        Patient.id == patient_id
-    ).first()
+    patient = db.get(
+        Patient,
+        patient_id
+    )
 
     if patient is None:
         logger.warning(
@@ -317,14 +325,13 @@ def patch_patient(
         )
         return None
 
-    # If doctor_id is provided, validate doctor
     if doctor_id is not None:
 
-        doctor = db.query(Doctor).filter(
-            Doctor.id == doctor_id
-        ).first()
+        doctor = db.get(
+            Doctor,
+            doctor_id
+        )
 
-        # Doctor does not exist
         if doctor is None:
             logger.warning(
                 "Patient patch failed: doctor id=%s not found",
@@ -332,7 +339,6 @@ def patch_patient(
             )
             return "doctor_not_found"
 
-        # Doctor is inactive
         if not doctor.is_active:
             logger.warning(
                 "Patient patch failed: doctor id=%s is inactive",
@@ -340,7 +346,6 @@ def patch_patient(
             )
             return "doctor_inactive"
 
-    # Update only the fields that were provided
     if name is not None:
         patient.name = name
 
@@ -394,9 +399,10 @@ def delete_patient(
         patient_id
     )
 
-    patient = db.query(Patient).filter(
-        Patient.id == patient_id
-    ).first()
+    patient = db.get(
+        Patient,
+        patient_id
+    )
 
     if patient is None:
         logger.warning(

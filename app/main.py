@@ -1,16 +1,20 @@
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 
 from app.auth.dependencies import get_current_user
 from app.config import CORS_ORIGINS
 from app.database import Base, engine
+
 from app.models import User, Doctor, Patient
+from app.models.appointment import Appointment
 from app.models.user import User as UserModel
 
 from app.routers.auth import router as auth_router
 from app.routers.doctors import router as doctors_router
 from app.routers.patients import router as patients_router
+from app.routers.appointments import router as appointments_router
 
 from app.utils.logging_config import setup_logging, get_logger
 
@@ -56,6 +60,44 @@ app.add_middleware(
 
 
 # =========================================================
+# DATABASE INTEGRITY ERROR HANDLER
+# =========================================================
+
+@app.exception_handler(IntegrityError)
+async def integrity_error_handler(
+    request: Request,
+    exc: IntegrityError
+):
+    logger.error(
+        "Database integrity error while processing %s %s: %s",
+        request.method,
+        request.url.path,
+        exc
+    )
+
+    error_message = str(exc.orig).lower()
+
+    if "unique constraint" in error_message:
+        detail = "A record with the same unique value already exists"
+
+    elif "foreign key constraint" in error_message:
+        detail = "Referenced record does not exist"
+
+    elif "check constraint" in error_message:
+        detail = "Submitted data violates a database constraint"
+
+    else:
+        detail = "Database integrity constraint violation"
+
+    return JSONResponse(
+        status_code=400,
+        content={
+            "detail": detail
+        }
+    )
+
+
+# =========================================================
 # GLOBAL EXCEPTION HANDLER
 # =========================================================
 
@@ -64,14 +106,12 @@ async def global_exception_handler(
     request: Request,
     exc: Exception
 ):
-    # Log the actual error on the server
     logger.exception(
         "Unhandled exception occurred while processing %s %s",
         request.method,
         request.url.path
     )
 
-    # Return a safe message to the API client
     return JSONResponse(
         status_code=500,
         content={
@@ -87,6 +127,7 @@ async def global_exception_handler(
 app.include_router(auth_router)
 app.include_router(doctors_router)
 app.include_router(patients_router)
+app.include_router(appointments_router)
 
 
 # =========================================================

@@ -33,9 +33,9 @@ router = APIRouter(
 )
 
 
-# =========================================================
+# ============================================================
 # CREATE DOCTOR
-# =========================================================
+# ============================================================
 
 @router.post(
     "",
@@ -54,7 +54,8 @@ def create_doctor_api(
         email=doctor_data.email
     )
 
-    if doctor is None:
+    # Handle duplicate doctor email
+    if doctor == "duplicate_email":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Doctor with this email already exists"
@@ -63,9 +64,9 @@ def create_doctor_api(
     return doctor
 
 
-# =========================================================
-# GET ALL DOCTORS + FILTERING + PAGINATION
-# =========================================================
+# ============================================================
+# GET ALL DOCTORS
+# ============================================================
 
 @router.get(
     "",
@@ -73,23 +74,19 @@ def create_doctor_api(
 )
 def get_doctors(
     specialization: str | None = Query(
-        default=None,
-        description="Filter doctors by specialization"
+        default=None
     ),
     is_active: bool | None = Query(
-        default=None,
-        description="Filter doctors by active status"
+        default=None
     ),
     page: int = Query(
         default=1,
-        ge=1,
-        description="Page number"
+        ge=1
     ),
     limit: int = Query(
         default=10,
         ge=1,
-        le=100,
-        description="Number of records per page"
+        le=100
     ),
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
@@ -103,9 +100,9 @@ def get_doctors(
     )
 
 
-# =========================================================
+# ============================================================
 # GET DOCTOR BY ID
-# =========================================================
+# ============================================================
 
 @router.get(
     "/{doctor_id}",
@@ -114,7 +111,7 @@ def get_doctors(
 def get_doctor(
     doctor_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_admin)
 ):
     doctor = get_doctor_by_id(
         db=db,
@@ -130,9 +127,9 @@ def get_doctor(
     return doctor
 
 
-# =========================================================
+# ============================================================
 # UPDATE DOCTOR - PUT
-# =========================================================
+# ============================================================
 
 @router.put(
     "/{doctor_id}",
@@ -157,7 +154,7 @@ def update_doctor_api(
 
     updated_doctor = update_doctor(
         db=db,
-        doctor=doctor,
+        doctor_id=doctor_id,
         name=doctor_data.name,
         specialization=doctor_data.specialization,
         email=doctor_data.email,
@@ -173,9 +170,9 @@ def update_doctor_api(
     return updated_doctor
 
 
-# =========================================================
+# ============================================================
 # PATCH DOCTOR
-# =========================================================
+# ============================================================
 
 @router.patch(
     "/{doctor_id}",
@@ -200,7 +197,7 @@ def patch_doctor_api(
 
     updated_doctor = patch_doctor(
         db=db,
-        doctor=doctor,
+        doctor_id=doctor_id,
         name=doctor_data.name,
         specialization=doctor_data.specialization,
         email=doctor_data.email,
@@ -216,9 +213,9 @@ def patch_doctor_api(
     return updated_doctor
 
 
-# =========================================================
+# ============================================================
 # DELETE DOCTOR - SOFT DELETE
-# =========================================================
+# ============================================================
 
 @router.delete(
     "/{doctor_id}",
@@ -242,13 +239,13 @@ def delete_doctor_api(
 
     return delete_doctor(
         db=db,
-        doctor=doctor
+        doctor_id=doctor_id
     )
 
 
-# =========================================================
+# ============================================================
 # ASSIGN PATIENT TO DOCTOR
-# =========================================================
+# ============================================================
 
 @router.post(
     "/{doctor_id}/patients/{patient_id}",
@@ -287,9 +284,9 @@ def assign_patient(
     return patient
 
 
-# =========================================================
-# GET PATIENTS BY DOCTOR
-# =========================================================
+# ============================================================
+# GET PATIENTS ASSIGNED TO DOCTOR
+# ============================================================
 
 @router.get(
     "/{doctor_id}/patients",
@@ -311,7 +308,10 @@ def get_doctor_patients(
             detail="Doctor not found"
         )
 
-    # ADMIN
+    # --------------------------------------------------------
+    # ADMIN ACCESS
+    # --------------------------------------------------------
+
     if current_user.role == "admin":
 
         patients = get_patients_by_doctor(
@@ -333,7 +333,10 @@ def get_doctor_patients(
 
         return patients
 
-    # DOCTOR
+    # --------------------------------------------------------
+    # DOCTOR ACCESS
+    # --------------------------------------------------------
+
     if current_user.role == "doctor":
 
         if doctor.user_id != current_user.id:
@@ -361,7 +364,10 @@ def get_doctor_patients(
 
         return patients
 
+    # --------------------------------------------------------
     # OTHER ROLES
+    # --------------------------------------------------------
+
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Access denied"

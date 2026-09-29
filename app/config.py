@@ -1,3 +1,4 @@
+
 import os
 
 from dotenv import load_dotenv
@@ -24,10 +25,12 @@ DATABASE_URL = os.getenv(
 # JWT AUTHENTICATION
 # =========================================================
 
-SECRET_KEY = os.getenv(
-    "SECRET_KEY",
-    "change-this-secret-key"
-)
+SECRET_KEY = os.getenv("SECRET_KEY")
+
+if not SECRET_KEY:
+    raise RuntimeError(
+        "SECRET_KEY environment variable is not configured"
+    )
 
 
 ALGORITHM = os.getenv(
@@ -52,3 +55,4 @@ CORS_ORIGINS = os.getenv(
     "CORS_ORIGINS",
     "http://localhost:3000,http://localhost:5173"
 ).split(",")
+

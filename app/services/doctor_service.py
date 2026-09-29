@@ -1,3 +1,4 @@
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.doctor import Doctor
@@ -24,9 +25,11 @@ def create_doctor(
         email
     )
 
-    existing_doctor = db.query(Doctor).filter(
-        Doctor.email == email
-    ).first()
+    existing_doctor = db.scalar(
+        select(Doctor).where(
+            Doctor.email == email
+        )
+    )
 
     if existing_doctor:
         logger.warning(
@@ -84,23 +87,36 @@ def get_all_doctors(
         limit
     )
 
-    query = db.query(Doctor)
+    query = select(Doctor)
 
     if specialization is not None:
-        query = query.filter(
+        query = query.where(
             Doctor.specialization == specialization
         )
 
     if is_active is not None:
-        query = query.filter(
+        query = query.where(
             Doctor.is_active == is_active
         )
 
-    total = query.count()
+    # Count matching records
+    count_query = select(
+        func.count()
+    ).select_from(
+        query.subquery()
+    )
 
+    total = db.scalar(count_query) or 0
+
+    # Pagination
     offset = (page - 1) * limit
 
-    doctors = query.offset(offset).limit(limit).all()
+    doctors = db.scalars(
+        query
+        .order_by(Doctor.id)
+        .offset(offset)
+        .limit(limit)
+    ).all()
 
     logger.info(
         "Retrieved %s doctors",
@@ -128,9 +144,10 @@ def get_doctor_by_id(
         doctor_id
     )
 
-    doctor = db.query(Doctor).filter(
-        Doctor.id == doctor_id
-    ).first()
+    doctor = db.get(
+        Doctor,
+        doctor_id
+    )
 
     if doctor is None:
         logger.warning(
@@ -154,9 +171,10 @@ def get_patients_by_doctor(
         doctor_id
     )
 
-    doctor = db.query(Doctor).filter(
-        Doctor.id == doctor_id
-    ).first()
+    doctor = db.get(
+        Doctor,
+        doctor_id
+    )
 
     if doctor is None:
         logger.warning(
@@ -172,8 +190,12 @@ def get_patients_by_doctor(
         )
         return "doctor_inactive"
 
-    patients = db.query(Patient).filter(
-        Patient.doctor_id == doctor_id
+    patients = db.scalars(
+        select(Patient)
+        .where(
+            Patient.doctor_id == doctor_id
+        )
+        .order_by(Patient.id)
     ).all()
 
     logger.info(
@@ -201,9 +223,10 @@ def assign_patient_to_doctor(
     )
 
     # Check doctor
-    doctor = db.query(Doctor).filter(
-        Doctor.id == doctor_id
-    ).first()
+    doctor = db.get(
+        Doctor,
+        doctor_id
+    )
 
     if doctor is None:
         logger.warning(
@@ -221,9 +244,10 @@ def assign_patient_to_doctor(
         return "doctor_inactive"
 
     # Check patient
-    patient = db.query(Patient).filter(
-        Patient.id == patient_id
-    ).first()
+    patient = db.get(
+        Patient,
+        patient_id
+    )
 
     if patient is None:
         logger.warning(
@@ -276,9 +300,10 @@ def update_doctor(
         doctor_id
     )
 
-    doctor = db.query(Doctor).filter(
-        Doctor.id == doctor_id
-    ).first()
+    doctor = db.get(
+        Doctor,
+        doctor_id
+    )
 
     if doctor is None:
         logger.warning(
@@ -287,10 +312,12 @@ def update_doctor(
         )
         return None
 
-    existing_doctor = db.query(Doctor).filter(
-        Doctor.email == email,
-        Doctor.id != doctor_id
-    ).first()
+    existing_doctor = db.scalar(
+        select(Doctor).where(
+            Doctor.email == email,
+            Doctor.id != doctor_id
+        )
+    )
 
     if existing_doctor:
         logger.warning(
@@ -343,9 +370,10 @@ def patch_doctor(
         doctor_id
     )
 
-    doctor = db.query(Doctor).filter(
-        Doctor.id == doctor_id
-    ).first()
+    doctor = db.get(
+        Doctor,
+        doctor_id
+    )
 
     if doctor is None:
         logger.warning(
@@ -356,10 +384,12 @@ def patch_doctor(
 
     if email is not None:
 
-        existing_doctor = db.query(Doctor).filter(
-            Doctor.email == email,
-            Doctor.id != doctor_id
-        ).first()
+        existing_doctor = db.scalar(
+            select(Doctor).where(
+                Doctor.email == email,
+                Doctor.id != doctor_id
+            )
+        )
 
         if existing_doctor:
             logger.warning(
@@ -415,9 +445,10 @@ def delete_doctor(
         doctor_id
     )
 
-    doctor = db.query(Doctor).filter(
-        Doctor.id == doctor_id
-    ).first()
+    doctor = db.get(
+        Doctor,
+        doctor_id
+    )
 
     if doctor is None:
         logger.warning(
