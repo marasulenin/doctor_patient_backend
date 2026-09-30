@@ -7,36 +7,13 @@ from app.database import Base
 class Patient(Base):
     __tablename__ = "patients"
 
-    id = Column(
-        Integer,
-        primary_key=True,
-        index=True
-    )
+    id = Column(Integer, primary_key=True, index=True)
 
-    name = Column(
-        String(100),
-        nullable=False
-    )
+    name = Column(String(100), nullable=False)
 
-    age = Column(
-        Integer,
-        nullable=False
-    )
+    age = Column(Integer, nullable=False)
 
-    phone = Column(
-        String(15),
-        nullable=False
-    )
-
-    address = Column(
-        String(255),
-        nullable=True
-    )
-
-    gender = Column(
-        String(20),
-        nullable=True
-    )
+    phone = Column(String(20), nullable=False)
 
     doctor_id = Column(
         Integer,
@@ -44,12 +21,20 @@ class Patient(Base):
         nullable=True
     )
 
+    # Relationship with Doctor
     doctor = relationship(
         "Doctor",
         back_populates="patients"
     )
 
+    # Relationship with Appointments
     appointments = relationship(
         "Appointment",
+        back_populates="patient"
+    )
+
+    # Relationship with Billings
+    billings = relationship(
+        "Billing",
         back_populates="patient"
     )

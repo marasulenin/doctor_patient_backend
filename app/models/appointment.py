@@ -75,12 +75,21 @@ class Appointment(Base):
         nullable=False
     )
 
+    # Relationship with Doctor
     doctor = relationship(
         "Doctor",
         back_populates="appointments"
     )
 
+    # Relationship with Patient
     patient = relationship(
         "Patient",
         back_populates="appointments"
+    )
+
+    # Relationship with Billing
+    billing = relationship(
+        "Billing",
+        back_populates="appointment",
+        uselist=False
     )

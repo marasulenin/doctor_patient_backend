@@ -1,117 +1,47 @@
-from fastapi import Depends, FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import IntegrityError
 
-from app.auth.dependencies import get_current_user
-from app.config import CORS_ORIGINS
 from app.database import Base, engine
 
-from app.models import User, Doctor, Patient
+# Models must be imported before create_all()
+from app.models.user import User
+from app.models.doctor import Doctor
+from app.models.patient import Patient
 from app.models.appointment import Appointment
-from app.models.user import User as UserModel
+from app.models.billing import Billing
 
+# Routers
 from app.routers.auth import router as auth_router
 from app.routers.doctors import router as doctors_router
 from app.routers.patients import router as patients_router
 from app.routers.appointments import router as appointments_router
+from app.routers.billings import router as billings_router
+from app.routers import reports
 
-from app.utils.logging_config import setup_logging, get_logger
-
-
-# =========================================================
-# LOGGING
-# =========================================================
-
-setup_logging()
-
-logger = get_logger(__name__)
-
-
-# =========================================================
-# DATABASE INITIALIZATION
-# =========================================================
-
-Base.metadata.create_all(bind=engine)
-
-
-# =========================================================
-# FASTAPI APPLICATION
-# =========================================================
 
 app = FastAPI(
     title="Doctor Patient Management API",
-    description="Production-style FastAPI backend for managing doctors and patients",
+    description="FastAPI backend for Doctor, Patient, Appointment and Billing Management",
     version="1.0.0"
 )
 
 
-# =========================================================
-# CORS
-# =========================================================
+# ---------------------------------------------------------
+# Database Initialization
+# ---------------------------------------------------------
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"]
-)
+Base.metadata.create_all(bind=engine)
 
 
-# =========================================================
-# DATABASE INTEGRITY ERROR HANDLER
-# =========================================================
-
-@app.exception_handler(IntegrityError)
-async def integrity_error_handler(
-    request: Request,
-    exc: IntegrityError
-):
-    logger.error(
-        "Database integrity error while processing %s %s: %s",
-        request.method,
-        request.url.path,
-        exc
-    )
-
-    error_message = str(exc.orig).lower()
-
-    if "unique constraint" in error_message:
-        detail = "A record with the same unique value already exists"
-
-    elif "foreign key constraint" in error_message:
-        detail = "Referenced record does not exist"
-
-    elif "check constraint" in error_message:
-        detail = "Submitted data violates a database constraint"
-
-    else:
-        detail = "Database integrity constraint violation"
-
-    return JSONResponse(
-        status_code=400,
-        content={
-            "detail": detail
-        }
-    )
-
-
-# =========================================================
-# GLOBAL EXCEPTION HANDLER
-# =========================================================
+# ---------------------------------------------------------
+# Global Exception Handler
+# ---------------------------------------------------------
 
 @app.exception_handler(Exception)
 async def global_exception_handler(
     request: Request,
     exc: Exception
 ):
-    logger.exception(
-        "Unhandled exception occurred while processing %s %s",
-        request.method,
-        request.url.path
-    )
-
     return JSONResponse(
         status_code=500,
         content={
@@ -120,45 +50,46 @@ async def global_exception_handler(
     )
 
 
-# =========================================================
-# ROUTERS
-# =========================================================
+# ---------------------------------------------------------
+# Root Endpoint
+# ---------------------------------------------------------
+
+@app.get(
+    "/",
+    tags=["default"]
+)
+def root():
+    return {
+        "message": "Doctor Patient Management API is running"
+    }
+
+
+# ---------------------------------------------------------
+# Health Check
+# ---------------------------------------------------------
+
+@app.get(
+    "/health",
+    tags=["default"]
+)
+def health_check():
+    return {
+        "status": "healthy"
+    }
+
+
+# ---------------------------------------------------------
+# API Routers
+# ---------------------------------------------------------
 
 app.include_router(auth_router)
+
 app.include_router(doctors_router)
+
 app.include_router(patients_router)
+
 app.include_router(appointments_router)
 
+app.include_router(billings_router)
 
-# =========================================================
-# HOME
-# =========================================================
-
-@app.get("/api/v1/")
-def home():
-    logger.info("Home endpoint called")
-
-    return {
-        "message": "Doctor Patient API is working"
-    }
-
-
-# =========================================================
-# PROTECTED TEST ROUTE
-# =========================================================
-
-@app.get("/api/v1/protected")
-def protected_route(
-    current_user: UserModel = Depends(get_current_user)
-):
-    logger.info(
-        "Protected endpoint accessed by user_id=%s",
-        current_user.id
-    )
-
-    return {
-        "message": "You are authenticated",
-        "user_id": current_user.id,
-        "username": current_user.username,
-        "role": current_user.role
-    }
+app.include_router(reports.router)
